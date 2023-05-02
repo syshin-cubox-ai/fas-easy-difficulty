@@ -76,19 +76,27 @@ def edge_is_spoofing(rectangles: list, bbox: list, threshold: int) -> bool:
     return False
 
 
-def yolo_is_spoofing(od_pred: Boxes, bbox: list, threshold: int) -> bool:
+def is_small_box_inside_large_box(large_box, small_box, draw_large_box=False) -> bool:
+    if draw_large_box:
+        x1, y1, x2, y2 = large_box.round().astype(np.int32)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 255), 2, cv2.LINE_8)
+
+    x1, y1, x2, y2 = large_box
+    r_x1, r_y1, r_x2, r_y2 = small_box
+    if r_x1 >= x1 and r_y1 >= y1 and r_x2 <= x2 and r_y2 <= y2:
+        return True
+    else:
+        return False
+
+
+def yolo_is_spoofing(yolo_pred: Boxes, bbox: list) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(bbox) > 1:
         return True
 
-    # 검출한 bbox의 중심점과 얼굴 bbox의 중심점 간의 거리가 임계값 미만이면 fake로 간주
-    bbox_center = np.array([bbox[0][0] + (bbox[0][2] - bbox[0][0]) / 2, bbox[0][1] + (bbox[0][3] - bbox[0][1]) / 2])
-    for od_pred_one in od_pred:
-        xywh = od_pred_one.xywh.cpu().numpy()
-        od_center = np.array([xywh[0][0] + (xywh[0][2] - xywh[0][0]) / 2, xywh[0][1] + (xywh[0][3] - xywh[0][1]) / 2])
-        distance = np.linalg.norm(bbox_center - od_center)
-        print(f'yolo_{distance=:.2f}')
-        if distance < threshold:
+    # yolo bbox 안에 얼굴 bbox가 들어있으면 fake로 간주
+    for yolo_pred_one in yolo_pred:
+        if is_small_box_inside_large_box(yolo_pred_one.xyxy.cpu().numpy()[0], bbox[0], draw_large_box=True):
             return True
     return False
 
@@ -167,10 +175,10 @@ if __name__ == '__main__':
 
                 edge = edge_detector.detect_one(img)
                 rectangles = find_rectangles(edge)
-                od_pred = yolo.predict(img, conf=0.6)[0].boxes
+                yolo_pred = yolo.predict(img, conf=0.6)[0].boxes
 
                 edge_spoofing = edge_is_spoofing(rectangles, bbox, 80)
-                yolo_spoofing = yolo_is_spoofing(od_pred, bbox, 95)
+                yolo_spoofing = yolo_is_spoofing(yolo_pred, bbox)
                 spoofing = convert_spoofing_to_string(edge_spoofing or yolo_spoofing)
 
                 utils.draw_prediction(img, bbox, conf, None, args.line_thickness, args.hide_conf)
@@ -202,10 +210,10 @@ if __name__ == '__main__':
 
             edge = edge_detector.detect_one(img)
             rectangles = find_rectangles(edge)
-            od_pred = yolo.predict(img, conf=0.6)[0].boxes
+            yolo_pred = yolo.predict(img, conf=0.6)[0].boxes
 
             edge_spoofing = edge_is_spoofing(rectangles, bbox, 80)
-            yolo_spoofing = yolo_is_spoofing(od_pred, bbox, 95)
+            yolo_spoofing = yolo_is_spoofing(yolo_pred, bbox)
             spoofing = convert_spoofing_to_string(edge_spoofing or yolo_spoofing)
 
             utils.draw_prediction(img, bbox, conf, None, args.line_thickness, args.hide_conf)
