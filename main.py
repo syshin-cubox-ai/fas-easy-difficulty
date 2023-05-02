@@ -33,7 +33,7 @@ def filter_rectangles(quadrangles: list[np.ndarray], angle_threshold: float) -> 
     return rectangles
 
 
-def find_rectangles(img: np.ndarray, edge: np.ndarray) -> list[np.ndarray]:
+def find_rectangles(edge: np.ndarray) -> list[np.ndarray]:
     # Post-process edge map
     morph = cv2.morphologyEx(edge, cv2.MORPH_ERODE, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)))
     cv2.imshow('morph', morph)
@@ -54,7 +54,6 @@ def find_rectangles(img: np.ndarray, edge: np.ndarray) -> list[np.ndarray]:
         i = np.argmax([cv2.contourArea(rect) for rect in rectangles])
         del rectangles[i]
 
-    cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
     return rectangles
 
 
@@ -167,12 +166,15 @@ if __name__ == '__main__':
                 bbox, conf, kps = face_detector.parse_prediction(pred)
 
                 edge = edge_detector.detect_one(img)
+                rectangles = find_rectangles(edge)
                 od_pred = yolo.predict(img, conf=0.6)[0].boxes
-                rectangles = find_rectangles(img, edge)
+
                 edge_spoofing = edge_is_spoofing(rectangles, bbox, 80)
                 yolo_spoofing = yolo_is_spoofing(od_pred, bbox, 95)
                 spoofing = convert_spoofing_to_string(edge_spoofing or yolo_spoofing)
+
                 utils.draw_prediction(img, bbox, conf, None, args.line_thickness, args.hide_conf)
+                cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
                 cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
                             0.66, (0, 0, 0), 2, cv2.LINE_AA)
                 cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
