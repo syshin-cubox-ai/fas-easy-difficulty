@@ -197,8 +197,23 @@ if __name__ == '__main__':
 
         # Detect edge
         pred = edge_detector.detect_one(img)
-        edge = edge_detector.detect_one(img)
-        rectangles = find_rectangles(img, edge)
+        if pred is not None:
+            bbox, conf, kps = face_detector.parse_prediction(pred)
+
+            edge = edge_detector.detect_one(img)
+            rectangles = find_rectangles(edge)
+            od_pred = yolo.predict(img, conf=0.6)[0].boxes
+
+            edge_spoofing = edge_is_spoofing(rectangles, bbox, 80)
+            yolo_spoofing = yolo_is_spoofing(od_pred, bbox, 95)
+            spoofing = convert_spoofing_to_string(edge_spoofing or yolo_spoofing)
+
+            utils.draw_prediction(img, bbox, conf, None, args.line_thickness, args.hide_conf)
+            cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
+            cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
+                        0.66, (0, 0, 0), 2, cv2.LINE_AA)
+            cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
+                        0.66, (255, 255, 255), 1, cv2.LINE_AA)
 
         # Save prediction
         cv2.imwrite('result.jpg', img)
