@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
             # Draw prediction
             if pred is not None:
-                bbox, conf, kps = face_detector.parse_prediction(pred)
+                bbox, conf, landmarks = face_detector.parse_prediction(pred)
 
                 edge = edge_detector.detect_one(img)
                 rectangles = find_rectangles(edge)
@@ -206,7 +206,7 @@ if __name__ == '__main__':
         # Detect edge
         pred = edge_detector.detect_one(img)
         if pred is not None:
-            bbox, conf, kps = face_detector.parse_prediction(pred)
+            bbox, conf, landmarks = face_detector.parse_prediction(pred)
 
             edge = edge_detector.detect_one(img)
             rectangles = find_rectangles(edge)
