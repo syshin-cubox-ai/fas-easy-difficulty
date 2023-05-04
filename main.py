@@ -5,12 +5,11 @@ import time
 
 import cv2
 import numpy as np
-import ultralytics
-from ultralytics.yolo.engine.results import Boxes
 
 import ldc
 import scrfd
 import utils
+import yolov8
 
 
 def angle(pt1, pt0, pt2):
@@ -33,14 +32,14 @@ def filter_rectangles(quadrangles: list[np.ndarray], angle_threshold: float) -> 
     return rectangles
 
 
-def find_rectangles(edge: np.ndarray) -> list[np.ndarray]:
+def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
     # Post-process edge map
-    morph = cv2.morphologyEx(edge, cv2.MORPH_ERODE, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)))
-    cv2.imshow('morph', morph)
+    morph = cv2.morphologyEx(edge_map, cv2.MORPH_ERODE, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)))
 
     # Find contours (+remove noise)
     contours, _ = cv2.findContours(morph, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_KCOS)
-    contours = [contour for contour in contours if cv2.contourArea(contour) > (edge.shape[0] * edge.shape[1] * 0.12)]
+    min_thres = (edge_map.shape[0] * edge_map.shape[1] * 0.12)
+    contours = [contour for contour in contours if cv2.contourArea(contour) > min_thres]
 
     # Approximate quadrangles (+remove noise)
     quadrangles = [cv2.approxPolyDP(contour, cv2.arcLength(contour, True) * 0.06, True) for contour in contours]
@@ -57,30 +56,27 @@ def find_rectangles(edge: np.ndarray) -> list[np.ndarray]:
     return rectangles
 
 
-def edge_is_spoofing(rectangles: list, bbox: list, threshold: int) -> bool:
+def is_paper_spoofing(rectangles: list, face_bbox: list, threshold: int) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
-    if len(bbox) > 1:
+    if len(face_bbox) > 1:
         return True
 
     # 검출한 사각형의 중심점과 얼굴 bbox의 중심점 간의 거리가 임계값 미만이면 fake로 간주
-    bbox_center = np.array([bbox[0][0] + (bbox[0][2] - bbox[0][0]) / 2, bbox[0][1] + (bbox[0][3] - bbox[0][1]) / 2])
+    bbox_center = np.array([face_bbox[0][0] + (face_bbox[0][2] - face_bbox[0][0]) / 2,
+                            face_bbox[0][1] + (face_bbox[0][3] - face_bbox[0][1]) / 2])
     for quad in rectangles:
         assert quad.shape == (4, 1, 2), f'Invalid quadrangle shape: {quad.shape}'
 
         moments = cv2.moments(quad.squeeze(1))
         quadrangle_center = np.array([moments['m10'] / moments['m00'], moments['m01'] / moments['m00']])
         distance = np.linalg.norm(bbox_center - quadrangle_center)
-        print(f'edge_{distance=:.2f}')
+        print(f'{distance=:.2f}')
         if distance < threshold:
             return True
     return False
 
 
-def is_small_box_inside_large_box(large_box, small_box, draw_large_box=False) -> bool:
-    if draw_large_box:
-        x1, y1, x2, y2 = large_box.round().astype(np.int32)
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 255), 2, cv2.LINE_8)
-
+def is_small_box_inside_large_box(large_box, small_box) -> bool:
     x1, y1, x2, y2 = large_box
     r_x1, r_y1, r_x2, r_y2 = small_box
     if r_x1 >= x1 and r_y1 >= y1 and r_x2 <= x2 and r_y2 <= y2:
@@ -89,19 +85,19 @@ def is_small_box_inside_large_box(large_box, small_box, draw_large_box=False) ->
         return False
 
 
-def yolo_is_spoofing(yolo_pred: Boxes, bbox: list) -> bool:
+def is_display_spoofing(display_bbox: list, face_bbox: list) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
-    if len(bbox) > 1:
+    if len(face_bbox) > 1:
         return True
 
     # yolo bbox 안에 얼굴 bbox가 들어있으면 fake로 간주
-    for yolo_pred_one in yolo_pred:
-        if is_small_box_inside_large_box(yolo_pred_one.xyxy.cpu().numpy()[0], bbox[0], draw_large_box=True):
+    for display_bbox_one in display_bbox:
+        if is_small_box_inside_large_box(display_bbox_one, face_bbox[0]):
             return True
     return False
 
 
-def convert_spoofing_to_string(spoofing: bool) -> str:
+def convert_is_spoofing_to_string(spoofing: bool) -> str:
     assert isinstance(spoofing, bool)
 
     if spoofing:
@@ -116,7 +112,7 @@ VID_FORMATS = 'asf', 'avi', 'gif', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 't
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--source', type=str, default='1', help='file/dir/webcam')
+    parser.add_argument('--source', type=str, default='0', help='file/dir/webcam')
     parser.add_argument('--device', type=str, default='cuda', help='[cpu, cuda, openvino, tensorrt]')
     parser.add_argument('--line-thickness', type=int, default=2, help='drawing thickness (pixels)')
     parser.add_argument('--hide-conf', action='store_true', help='hide confidences')
@@ -127,7 +123,7 @@ if __name__ == '__main__':
     # Load detector
     edge_detector = ldc.LDC('onnx_files/ldc_b4.onnx', args.device)
     face_detector = scrfd.SCRFD('onnx_files/scrfd_2.5g_bnkps.onnx', 0.3, 0.5, args.device)
-    yolo = ultralytics.YOLO('torch_files/yolov8n-smartphone.pt')
+    display_detector = yolov8.YOLOv8('onnx_files/yolov8n-smartphone.onnx', 0.7, 0.7, args.device)
 
     # Inference
     # source: webcam or video
@@ -155,7 +151,9 @@ if __name__ == '__main__':
 
             # Detect edge
             start = time.perf_counter()
-            pred = face_detector.detect_one(img)
+            face_pred = face_detector.detect_one(img)
+            edge_map = edge_detector.detect_one(img)
+            display_pred = display_detector.detect_one(img)
             accumulated_time += (time.perf_counter() - start)
             if count % 10 == 0:
                 fps = 1 / (accumulated_time / 10)
@@ -170,18 +168,20 @@ if __name__ == '__main__':
                             0.66, (255, 255, 255), 1, cv2.LINE_AA)
 
             # Draw prediction
-            if pred is not None:
-                bbox, conf, landmarks = face_detector.parse_prediction(pred)
+            if face_pred is not None:
+                face_bbox, face_conf, _ = face_detector.parse_prediction(face_pred)
+                rectangles = find_rectangles(edge_map)
+                paper_spoofing = is_paper_spoofing(rectangles, face_bbox, 80)
+                if display_pred is not None:
+                    display_bbox, display_conf = display_detector.parse_prediction(display_pred)
+                    display_spoofing = is_display_spoofing(display_bbox, face_bbox)
+                    cv2.rectangle(img, display_bbox[:2], display_bbox[2:], (0, 255, 255), 2, cv2.LINE_8)
+                else:
+                    display_spoofing = False
 
-                edge = edge_detector.detect_one(img)
-                rectangles = find_rectangles(edge)
-                yolo_pred = yolo.predict(img, conf=0.6)[0].boxes
+                spoofing = convert_is_spoofing_to_string(paper_spoofing or display_spoofing)
 
-                edge_spoofing = edge_is_spoofing(rectangles, bbox, 80)
-                yolo_spoofing = yolo_is_spoofing(yolo_pred, bbox)
-                spoofing = convert_spoofing_to_string(edge_spoofing or yolo_spoofing)
-
-                utils.draw_prediction(img, bbox, conf, None, args.line_thickness, args.hide_conf)
+                utils.draw_prediction(img, face_bbox, face_conf, None, args.line_thickness, args.hide_conf)
                 cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
                 cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
                             0.66, (0, 0, 0), 2, cv2.LINE_AA)
@@ -204,19 +204,23 @@ if __name__ == '__main__':
         assert img is not None
 
         # Detect edge
-        pred = edge_detector.detect_one(img)
-        if pred is not None:
-            bbox, conf, landmarks = face_detector.parse_prediction(pred)
+        face_pred = face_detector.detect_one(img)
+        edge_map = edge_detector.detect_one(img)
+        display_pred = display_detector.detect_one(img)
+        if face_pred is not None:
+            face_bbox, face_conf, _ = face_detector.parse_prediction(face_pred)
+            rectangles = find_rectangles(edge_map)
+            paper_spoofing = is_paper_spoofing(rectangles, face_bbox, 80)
+            if display_pred is not None:
+                display_bbox, display_conf = display_detector.parse_prediction(display_pred)
+                display_spoofing = is_display_spoofing(display_bbox, face_bbox)
+                cv2.rectangle(img, display_bbox[:2], display_bbox[2:], (0, 255, 255), 2, cv2.LINE_8)
+            else:
+                display_spoofing = False
 
-            edge = edge_detector.detect_one(img)
-            rectangles = find_rectangles(edge)
-            yolo_pred = yolo.predict(img, conf=0.6)[0].boxes
+            spoofing = convert_is_spoofing_to_string(paper_spoofing or display_spoofing)
 
-            edge_spoofing = edge_is_spoofing(rectangles, bbox, 80)
-            yolo_spoofing = yolo_is_spoofing(yolo_pred, bbox)
-            spoofing = convert_spoofing_to_string(edge_spoofing or yolo_spoofing)
-
-            utils.draw_prediction(img, bbox, conf, None, args.line_thickness, args.hide_conf)
+            utils.draw_prediction(img, face_bbox, face_conf, None, args.line_thickness, args.hide_conf)
             cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
             cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
                         0.66, (0, 0, 0), 2, cv2.LINE_AA)

@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 import cv2
 import numpy as np
@@ -10,7 +10,7 @@ import torchvision
 from utils import clip_coords, resize_preserving_aspect_ratio, xywh2xyxy
 
 
-class YOLO:
+class YOLOv8:
     def __init__(self, model_path: str, conf_thres: float, iou_thres: float, device: str):
         """
         Args:
@@ -58,7 +58,7 @@ class YOLO:
     def _non_max_suppression(self, pred: np.ndarray) -> np.ndarray:
         pred = np.transpose(pred[0])
 
-        # Remove items based on conf
+        # Remove low conf items
         pred = pred[pred[:, 4] > self.conf_thres]
         if not pred.shape[0]:
             return pred
@@ -101,8 +101,8 @@ class YOLO:
         else:
             return None
 
-    def parse_prediction(self, pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def parse_prediction(self, pred: np.ndarray) -> Tuple[List, List]:
         """Parse prediction to bbox, confidence, and landmarks."""
-        bbox = pred[:, :4].round().astype(np.int32)
-        conf = pred[:, 4]
+        bbox = pred[:, :4].round().astype(np.int32).tolist()
+        conf = pred[:, 4].tolist()
         return bbox, conf
