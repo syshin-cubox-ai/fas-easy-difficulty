@@ -36,6 +36,14 @@ def xywh2xyxy(x):
     return y
 
 
+def xywh2xywh(x):
+    # Convert nx4 boxes from [x, y, w, h] to [x1, y1, w, h] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
+    y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
+    return y
+
+
 def draw_prediction(img: np.ndarray, bbox: list, conf: list, landmarks: list = None, thickness=2, hide_conf=False):
     # Draw prediction on the image. If the landmarks is None, only draw the bbox.
     assert img.ndim == 3, f'img dimension is invalid: {img.ndim}'

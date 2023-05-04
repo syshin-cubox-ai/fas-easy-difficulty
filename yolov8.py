@@ -4,10 +4,8 @@ from typing import Tuple, Optional, List
 import cv2
 import numpy as np
 import onnxruntime
-import torch
-import torchvision
 
-from utils import clip_coords, resize_preserving_aspect_ratio, xywh2xyxy
+from utils import clip_coords, resize_preserving_aspect_ratio, xywh2xywh, xywh2xyxy
 
 
 class YOLOv8:
@@ -55,44 +53,37 @@ class YOLOv8:
         img = cv2.dnn.blobFromImage(img, 1 / 255, img.shape[:2][::-1], swapRB=True)
         return img, scale
 
-    def _non_max_suppression(self, pred: np.ndarray) -> np.ndarray:
+    def _non_max_suppression(self, pred: np.ndarray) -> Optional[np.ndarray]:
         pred = np.transpose(pred[0])
 
-        # Remove low conf items
-        pred = pred[pred[:, 4] > self.conf_thres]
-        if not pred.shape[0]:
-            return pred
-
-        # Box (cx, cy, w, h) to (x1, y1, x2, y2)
-        pred[:, :4] = xywh2xyxy(pred[:, :4])
-
-        # sort by confidence
-        pred = pred[pred[:, 4].argsort()[::-1]]
-
         # NMS
-        i = torchvision.ops.nms(torch.from_numpy(pred[:, :4]), torch.from_numpy(pred[:, 4]), self.iou_thres).tolist()
-
-        pred = pred[i]
-        return pred
+        i = cv2.dnn.NMSBoxes(xywh2xywh(pred[:, :4]), pred[:, 4], self.conf_thres, self.iou_thres)
+        if len(i) > 0:
+            pred = pred[i]
+            # Box (cx, cy, w, h) to (x1, y1, x2, y2)
+            pred[:, :4] = xywh2xyxy(pred[:, :4])
+            return pred
+        else:
+            return None
 
     def detect_one(self, img: np.ndarray) -> Optional[np.ndarray]:
         """
-        Perform face detection on a single image.
+        Perform display detection on a single image.
         Args:
             img: Input image read using OpenCV. (HWC, BGR)
         Return:
             pred:
-                Post-processed prediction. Shape=(number of faces, 15)
+                Post-processed prediction. Shape=(number of display, 15)
                 15 is composed of bbox coordinates(4), object confidence(1), and landmarks coordinates(10).
                 The coordinate format is x1y1x2y2 (bbox), xy per point (landmarks).
                 The unit is image pixel.
-                If no face is detected, output None.
+                If no display is detected, output None.
         """
         original_img_shape = img.shape[:2]
         img, scale = self._transform_image(img)
         pred = self.session.run(None, {self.input_name: img})[0]
         pred = self._non_max_suppression(pred)
-        if pred.shape[0] > 0:
+        if pred is not None:
             # Rescale coordinates from inference size to input image size
             pred[:, :4] /= scale
             pred[:, 5:] /= scale
