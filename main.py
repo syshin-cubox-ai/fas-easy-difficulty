@@ -53,6 +53,8 @@ def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
         i = np.argmax([cv2.contourArea(rect) for rect in rectangles])
         del rectangles[i]
 
+    # DEBUG
+    cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
     return rectangles
 
 
@@ -70,7 +72,7 @@ def is_paper_spoofing(rectangles: list, face_bbox: list, threshold: int) -> bool
         moments = cv2.moments(quad.squeeze(1))
         quadrangle_center = np.array([moments['m10'] / moments['m00'], moments['m01'] / moments['m00']])
         distance = np.linalg.norm(bbox_center - quadrangle_center)
-        print(f'{distance=:.2f}')
+        print(f'{distance=:.2f}')  # DEBUG
         if distance < threshold:
             return True
     return False
@@ -92,6 +94,7 @@ def is_display_spoofing(display_bbox: list, face_bbox: list) -> bool:
 
     # yolo bbox 안에 얼굴 bbox가 들어있으면 fake로 간주
     for display_bbox_one in display_bbox:
+        cv2.rectangle(img, display_bbox_one[:2], display_bbox_one[2:], (0, 255, 255), 2, cv2.LINE_8)  # DEBUG
         if is_small_box_inside_large_box(display_bbox_one, face_bbox[0]):
             return True
     return False
@@ -175,7 +178,6 @@ if __name__ == '__main__':
                 if display_pred is not None:
                     display_bbox, display_conf = display_detector.parse_prediction(display_pred)
                     display_spoofing = is_display_spoofing(display_bbox, face_bbox)
-                    cv2.rectangle(img, display_bbox[:2], display_bbox[2:], (0, 255, 255), 2, cv2.LINE_8)
                 else:
                     display_spoofing = False
 
@@ -214,7 +216,6 @@ if __name__ == '__main__':
             if display_pred is not None:
                 display_bbox, display_conf = display_detector.parse_prediction(display_pred)
                 display_spoofing = is_display_spoofing(display_bbox, face_bbox)
-                cv2.rectangle(img, display_bbox[:2], display_bbox[2:], (0, 255, 255), 2, cv2.LINE_8)
             else:
                 display_spoofing = False
 
