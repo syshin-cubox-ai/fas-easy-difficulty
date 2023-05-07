@@ -52,9 +52,6 @@ def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
     if len(rectangles) > 1:
         i = np.argmax([cv2.contourArea(rect) for rect in rectangles])
         del rectangles[i]
-
-    # DEBUG
-    cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
     return rectangles
 
 
@@ -62,10 +59,11 @@ def is_paper_spoofing(rectangles: list, face_bbox: list, threshold: int) -> bool
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(face_bbox) > 1:
         return True
+    face_bbox = face_bbox[0]
 
     # 검출한 사각형의 중심점과 얼굴 bbox의 중심점 간의 거리가 임계값 미만이면 fake로 간주
-    bbox_center = np.array([face_bbox[0][0] + (face_bbox[0][2] - face_bbox[0][0]) / 2,
-                            face_bbox[0][1] + (face_bbox[0][3] - face_bbox[0][1]) / 2])
+    bbox_center = np.array([face_bbox[0] + (face_bbox[2] - face_bbox[0]) / 2,
+                            face_bbox[1] + (face_bbox[3] - face_bbox[1]) / 2])
     for quad in rectangles:
         assert quad.shape == (4, 1, 2), f'Invalid quadrangle shape: {quad.shape}'
 
@@ -91,11 +89,12 @@ def is_display_spoofing(display_bbox: list, face_bbox: list) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(face_bbox) > 1:
         return True
+    face_bbox = face_bbox[0]
 
     # yolo bbox 안에 얼굴 bbox가 들어있으면 fake로 간주
     for display_bbox_one in display_bbox:
         cv2.rectangle(img, display_bbox_one[:2], display_bbox_one[2:], (0, 255, 255), 2, cv2.LINE_8)  # DEBUG
-        if is_small_box_inside_large_box(display_bbox_one, face_bbox[0]):
+        if is_small_box_inside_large_box(display_bbox_one, face_bbox):
             return True
     return False
 

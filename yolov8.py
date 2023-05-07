@@ -60,8 +60,7 @@ class YOLOv8:
         i = cv2.dnn.NMSBoxes(xywh2xywh(pred[:, :4]), pred[:, 4], self.conf_thres, self.iou_thres)
         if len(i) > 0:
             pred = pred[i]
-            # Box (cx, cy, w, h) to (x1, y1, x2, y2)
-            pred[:, :4] = xywh2xyxy(pred[:, :4])
+            pred[:, :4] = xywh2xyxy(pred[:, :4])  # Box (cx, cy, w, h) to (x1, y1, x2, y2)
             return pred
         else:
             return None

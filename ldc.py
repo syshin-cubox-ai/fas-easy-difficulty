@@ -41,5 +41,5 @@ class LDC:
 
     def detect_one(self, img: np.ndarray) -> np.ndarray:
         img = self._transform_image(img)
-        edge = self.session.run(None, {self.input_name: img})[0]
-        return edge
+        edge_map = self.session.run(None, {self.input_name: img})[0]
+        return edge_map
