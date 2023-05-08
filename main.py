@@ -37,25 +37,22 @@ def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
     morph = cv2.morphologyEx(edge_map, cv2.MORPH_ERODE, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)))
 
     # Find contours (+remove noise)
-    contours, _ = cv2.findContours(morph, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_KCOS)
     min_thres = (edge_map.shape[0] * edge_map.shape[1] * 0.12)
-    contours = [contour for contour in contours if cv2.contourArea(contour) > min_thres]
+    max_thres = (edge_map.shape[0] * edge_map.shape[1] * 0.97)
+    contours, _ = cv2.findContours(morph, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_KCOS)
+    contours = [contour for contour in contours if min_thres < cv2.contourArea(contour) < max_thres]
 
     # Approximate quadrangles (+remove noise)
     quadrangles = [cv2.approxPolyDP(contour, cv2.arcLength(contour, True) * 0.06, True) for contour in contours]
-    quadrangles = [quad for quad in quadrangles if quad.shape == (4, 1, 2)]
+    quadrangles = [quad for quad in quadrangles
+                   if quad.shape == (4, 1, 2) and (min_thres < cv2.contourArea(quad) < max_thres)]
 
     # Filter rectangles only
     rectangles = filter_rectangles(quadrangles, 0.15)
-
-    # Remove largest rectangle
-    if len(rectangles) > 1:
-        i = np.argmax([cv2.contourArea(rect) for rect in rectangles])
-        del rectangles[i]
     return rectangles
 
 
-def is_paper_spoofing(face_bbox: list, edge_map: np.ndarray, threshold: int) -> bool:
+def is_paper_spoofing(face_bbox: list, edge_map: np.ndarray, dist_threshold=80) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(face_bbox) > 1:
         return True
@@ -73,7 +70,7 @@ def is_paper_spoofing(face_bbox: list, edge_map: np.ndarray, threshold: int) -> 
         quadrangle_center = np.array([moments['m10'] / moments['m00'], moments['m01'] / moments['m00']])
         distance = np.linalg.norm(bbox_center - quadrangle_center)
         print(f'{distance=:.2f}')  # DEBUG
-        if distance < threshold:
+        if distance < dist_threshold:
             return True
     return False
 
@@ -174,7 +171,7 @@ if __name__ == '__main__':
             # Draw prediction
             if face_pred is not None:
                 face_bbox, face_conf, _ = face_detector.parse_prediction(face_pred)
-                paper_spoofing = is_paper_spoofing(face_bbox, edge_map, 80)
+                paper_spoofing = is_paper_spoofing(face_bbox, edge_map)
                 if display_pred is not None:
                     display_bbox, display_conf = display_detector.parse_prediction(display_pred)
                     display_spoofing = is_display_spoofing(face_bbox, display_bbox)
@@ -210,7 +207,7 @@ if __name__ == '__main__':
         display_pred = display_detector.detect_one(img)
         if face_pred is not None:
             face_bbox, face_conf, _ = face_detector.parse_prediction(face_pred)
-            paper_spoofing = is_paper_spoofing(face_bbox, edge_map, 80)
+            paper_spoofing = is_paper_spoofing(face_bbox, edge_map)
             if display_pred is not None:
                 display_bbox, display_conf = display_detector.parse_prediction(display_pred)
                 display_spoofing = is_display_spoofing(face_bbox, display_bbox)
