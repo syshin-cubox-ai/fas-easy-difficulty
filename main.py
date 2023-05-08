@@ -46,7 +46,7 @@ def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
     quadrangles = [quad for quad in quadrangles if quad.shape == (4, 1, 2)]
 
     # Filter rectangles only
-    rectangles = filter_rectangles(quadrangles, 0.18)
+    rectangles = filter_rectangles(quadrangles, 0.15)
 
     # Remove largest rectangle
     if len(rectangles) > 1:
