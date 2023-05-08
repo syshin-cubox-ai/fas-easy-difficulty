@@ -55,13 +55,15 @@ def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
     return rectangles
 
 
-def is_paper_spoofing(rectangles: list, face_bbox: list, threshold: int) -> bool:
+def is_paper_spoofing(face_bbox: list, edge_map: np.ndarray, threshold: int) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(face_bbox) > 1:
         return True
     face_bbox = face_bbox[0]
 
     # 검출한 사각형의 중심점과 얼굴 bbox의 중심점 간의 거리가 임계값 미만이면 fake로 간주
+    rectangles = find_rectangles(edge_map)
+    cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)  # DEBUG
     bbox_center = np.array([face_bbox[0] + (face_bbox[2] - face_bbox[0]) / 2,
                             face_bbox[1] + (face_bbox[3] - face_bbox[1]) / 2])
     for quad in rectangles:
@@ -85,7 +87,7 @@ def is_small_box_inside_large_box(large_box, small_box) -> bool:
         return False
 
 
-def is_display_spoofing(display_bbox: list, face_bbox: list) -> bool:
+def is_display_spoofing(face_bbox: list, display_bbox: list) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(face_bbox) > 1:
         return True
@@ -172,18 +174,16 @@ if __name__ == '__main__':
             # Draw prediction
             if face_pred is not None:
                 face_bbox, face_conf, _ = face_detector.parse_prediction(face_pred)
-                rectangles = find_rectangles(edge_map)
-                paper_spoofing = is_paper_spoofing(rectangles, face_bbox, 80)
+                paper_spoofing = is_paper_spoofing(face_bbox, edge_map, 80)
                 if display_pred is not None:
                     display_bbox, display_conf = display_detector.parse_prediction(display_pred)
-                    display_spoofing = is_display_spoofing(display_bbox, face_bbox)
+                    display_spoofing = is_display_spoofing(face_bbox, display_bbox)
                 else:
                     display_spoofing = False
 
                 spoofing = convert_is_spoofing_to_string(paper_spoofing or display_spoofing)
 
                 utils.draw_prediction(img, face_bbox, face_conf, None, args.line_thickness, args.hide_conf)
-                cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
                 cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
                             0.66, (0, 0, 0), 2, cv2.LINE_AA)
                 cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
@@ -210,18 +210,16 @@ if __name__ == '__main__':
         display_pred = display_detector.detect_one(img)
         if face_pred is not None:
             face_bbox, face_conf, _ = face_detector.parse_prediction(face_pred)
-            rectangles = find_rectangles(edge_map)
-            paper_spoofing = is_paper_spoofing(rectangles, face_bbox, 80)
+            paper_spoofing = is_paper_spoofing(face_bbox, edge_map, 80)
             if display_pred is not None:
                 display_bbox, display_conf = display_detector.parse_prediction(display_pred)
-                display_spoofing = is_display_spoofing(display_bbox, face_bbox)
+                display_spoofing = is_display_spoofing(face_bbox, display_bbox)
             else:
                 display_spoofing = False
 
             spoofing = convert_is_spoofing_to_string(paper_spoofing or display_spoofing)
 
             utils.draw_prediction(img, face_bbox, face_conf, None, args.line_thickness, args.hide_conf)
-            cv2.drawContours(img, rectangles, -1, (0, 0, 255), 2)
             cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
                         0.66, (0, 0, 0), 2, cv2.LINE_AA)
             cv2.putText(img, f'{spoofing}', (10, 50), cv2.FONT_HERSHEY_DUPLEX,
