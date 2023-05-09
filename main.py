@@ -90,7 +90,7 @@ def is_display_spoofing(face_bbox: list, display_bbox: list) -> bool:
         return True
     face_bbox = face_bbox[0]
 
-    # yolo bbox 안에 얼굴 bbox가 들어있으면 fake로 간주
+    # display bbox 안에 얼굴 bbox가 들어있으면 fake로 간주
     for display_bbox_one in display_bbox:
         cv2.rectangle(img, display_bbox_one[:2], display_bbox_one[2:], (0, 255, 255), 2, cv2.LINE_8)  # DEBUG
         if is_small_box_inside_large_box(display_bbox_one, face_bbox):
@@ -150,7 +150,7 @@ if __name__ == '__main__':
             ret, img = cap.read()
             assert ret, 'no frame has been grabbed.'
 
-            # Detect edge
+            # Detect
             start = time.perf_counter()
             face_pred = face_detector.detect_one(img)
             edge_map = edge_detector.detect_one(img)
@@ -201,7 +201,7 @@ if __name__ == '__main__':
         img: np.ndarray = cv2.imread(args.source)
         assert img is not None
 
-        # Detect edge
+        # Detect
         face_pred = face_detector.detect_one(img)
         edge_map = edge_detector.detect_one(img)
         display_pred = display_detector.detect_one(img)
