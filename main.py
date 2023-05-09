@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
     # Load detector
     edge_detector = ldc.LDC('onnx_files/ldc_b4.onnx', args.device)
-    face_detector = scrfd.SCRFD('onnx_files/scrfd_2.5g_bnkps.onnx', 0.3, 0.5, args.device)
+    face_detector = scrfd.SCRFD('onnx_files/scrfd_500m_bnkps.onnx', 0.3, 0.5, args.device)
     display_detector = yolov8.YOLOv8('onnx_files/yolov8n-smartphone.onnx', 0.7, 0.7, args.device)
 
     # Inference
