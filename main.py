@@ -52,7 +52,7 @@ def find_rectangles(edge_map: np.ndarray) -> list[np.ndarray]:
     return rectangles
 
 
-def is_paper_spoofing(face_bbox: list, edge_map: np.ndarray, dist_threshold=80) -> bool:
+def is_paper_spoofing(face_bbox: list, edge_map: np.ndarray, dist_threshold=60) -> bool:
     # 얼굴이 2개 이상 검출되면 fake로 간주
     if len(face_bbox) > 1:
         return True
