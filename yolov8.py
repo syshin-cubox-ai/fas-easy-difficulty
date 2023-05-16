@@ -25,21 +25,41 @@ class YOLOv8:
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
 
-        if device == 'cpu':
-            providers = ['CPUExecutionProvider']
-        elif device == 'cuda':
-            providers = ['CUDAExecutionProvider']
-        elif device == 'openvino':
-            providers = ['OpenVINOExecutionProvider']
-        elif device == 'tensorrt':
-            providers = ['TensorrtExecutionProvider']
+        self.mode = None
+        self.session = None
+        self.input_name = None
+        self.request = None
+        if os.path.splitext(model_path)[-1] == '.onnx':
+            self.mode = 'onnx'
+            if device == 'cpu':
+                providers = ['CPUExecutionProvider']
+            elif device == 'cuda':
+                providers = ['CUDAExecutionProvider']
+            elif device == 'openvino':
+                providers = ['OpenVINOExecutionProvider']
+            elif device == 'tensorrt':
+                providers = ['TensorrtExecutionProvider']
+            else:
+                raise ValueError(f'device is invalid: {device}')
+            self.session = onnxruntime.InferenceSession(model_path, providers=providers)
+            session_input = self.session.get_inputs()[0]
+            assert session_input.shape[2] == session_input.shape[3], 'The input shape must be square.'
+            self.img_size = session_input.shape[2]
+            self.input_name = session_input.name
+
+        elif os.path.splitext(model_path)[-1] == '.xml':
+            self.mode = 'openvino'
+            import openvino.runtime
+            import openvino.utils
+            openvino.utils.add_openvino_libs_to_path()
+            core = openvino.runtime.Core()
+            compiled_model = core.compile_model(model_path, 'CPU')
+            self.request = compiled_model.create_infer_request()
+            input_shape = self.request.inputs[0].shape
+            assert input_shape[2] == input_shape[3], 'The input shape must be square.'
+            self.img_size = input_shape[2]
         else:
-            raise ValueError(f'device is invalid: {device}')
-        self.session = onnxruntime.InferenceSession(model_path, providers=providers)
-        session_input = self.session.get_inputs()[0]
-        assert session_input.shape[2] == session_input.shape[3], 'The input shape must be square.'
-        self.img_size = session_input.shape[2]
-        self.input_name = session_input.name
+            raise ValueError(f'Wrong file extension: {os.path.splitext(model_path)[-1]}')
 
     def _transform_image(self, img: np.ndarray) -> Tuple[np.ndarray, float]:
         """
@@ -80,7 +100,12 @@ class YOLOv8:
         """
         original_img_shape = img.shape[:2]
         img, scale = self._transform_image(img)
-        pred = self.session.run(None, {self.input_name: img})[0]
+        if self.mode == 'onnx':
+            pred = self.session.run(None, {self.input_name: img})[0]
+        elif self.mode == 'openvino':
+            pred = self.request.infer({0: img}).popitem()[1]
+        else:
+            raise ValueError(f'Wrong mode: {self.mode}')
         pred = self._non_max_suppression(pred)
         if pred is not None:
             # Rescale coordinates from inference size to input image size
