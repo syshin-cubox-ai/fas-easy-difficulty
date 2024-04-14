@@ -50,12 +50,9 @@ class YOLOv8:
         elif os.path.splitext(model_path)[-1] == '.xml':
             self.mode = 'openvino'
             import openvino.runtime
-            import openvino.utils
-            openvino.utils.add_openvino_libs_to_path()
             core = openvino.runtime.Core()
-            compiled_model = core.compile_model(model_path, 'CPU')
-            self.request = compiled_model.create_infer_request()
-            input_shape = self.request.inputs[0].shape
+            self.compiled_model = core.compile_model(model_path, 'CPU')
+            input_shape = self.compiled_model.inputs[0].shape
             assert input_shape[2] == input_shape[3], 'The input shape must be square.'
             self.img_size = input_shape[2]
         else:
@@ -103,7 +100,7 @@ class YOLOv8:
         if self.mode == 'onnx':
             pred = self.session.run(None, {self.input_name: img})[0]
         elif self.mode == 'openvino':
-            pred = self.request.infer({0: img}).popitem()[1]
+            pred = self.compiled_model(img)[0]
         else:
             raise ValueError(f'Wrong mode: {self.mode}')
         pred = self._non_max_suppression(pred)
