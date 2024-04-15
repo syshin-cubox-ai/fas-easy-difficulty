@@ -25,6 +25,12 @@ def clip_coords(boxes: np.ndarray, shape: tuple) -> np.ndarray:
     return boxes
 
 
+def xyxy2xywh(bbox: np.ndarray) -> np.ndarray:
+    bbox[:, 2] = bbox[:, 2] - bbox[:, 0]
+    bbox[:, 3] = bbox[:, 3] - bbox[:, 1]
+    return bbox
+
+
 def xywh2xyxy(x):
     # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = np.copy(x)
@@ -41,6 +47,25 @@ def xywh2xywh(x):
     y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
     y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
     return y
+
+
+def leave_max_area_item(pred: np.ndarray) -> np.ndarray:
+    area = (pred[..., 2] - pred[..., 0]) * (pred[..., 3] - pred[..., 1])
+    max_idx = np.argmax(area)
+
+    pred = np.expand_dims(pred[max_idx], 0)
+    return pred
+
+
+def resize_divisible(img: np.ndarray, img_size: int) -> Tuple[np.ndarray, float]:
+    h, w = img.shape[:2]
+    scale = img_size / min(h, w)
+    h *= scale
+    w *= scale
+    h = round(h / 64) * 64
+    w = round(w / 64) * 64
+    img = cv2.resize(img, (w, h), interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_LANCZOS4)
+    return img, scale
 
 
 def draw_prediction(img: np.ndarray, bbox: np.ndarray, conf: np.ndarray, landmarks: np.ndarray = None, thickness=2, hide_conf=False):
