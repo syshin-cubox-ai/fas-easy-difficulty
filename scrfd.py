@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 
 import cv2
 import numpy as np
@@ -120,7 +120,7 @@ class SCRFD:
         else:
             return None
 
-    def parse_prediction(self, pred: np.ndarray) -> Tuple[List, List, List]:
+    def parse_prediction(self, pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Parse prediction to bbox, confidence, and landmarks."""
         bbox = pred[:, :4].round().astype(np.int32).tolist()
         conf = pred[:, 4].tolist()

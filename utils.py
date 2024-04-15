@@ -43,7 +43,7 @@ def xywh2xywh(x):
     return y
 
 
-def draw_prediction(img: np.ndarray, bbox: list, conf: list, landmarks: list = None, thickness=2, hide_conf=False):
+def draw_prediction(img: np.ndarray, bbox: np.ndarray, conf: np.ndarray, landmarks: np.ndarray = None, thickness=2, hide_conf=False):
     # Draw prediction on the image. If the landmarks is None, only draw the bbox.
     assert img.ndim == 3, f'img dimension is invalid: {img.ndim}'
     assert img.dtype == np.uint8, f'img dtype must be uint8, got {img.dtype}'
