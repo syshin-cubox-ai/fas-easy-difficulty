@@ -49,14 +49,6 @@ def xywh2xywh(x):
     return y
 
 
-def leave_max_area_item(pred: np.ndarray) -> np.ndarray:
-    area = (pred[..., 2] - pred[..., 0]) * (pred[..., 3] - pred[..., 1])
-    max_idx = np.argmax(area)
-
-    pred = np.expand_dims(pred[max_idx], 0)
-    return pred
-
-
 def resize_divisible(img: np.ndarray, img_size: int) -> Tuple[np.ndarray, float]:
     h, w = img.shape[:2]
     scale = img_size / min(h, w)
@@ -68,7 +60,8 @@ def resize_divisible(img: np.ndarray, img_size: int) -> Tuple[np.ndarray, float]
     return img, scale
 
 
-def draw_prediction(img: np.ndarray, bbox: np.ndarray, conf: np.ndarray, landmarks: np.ndarray = None, thickness=2, hide_conf=False):
+def draw_prediction(img: np.ndarray, bbox: np.ndarray, conf: np.ndarray, landmarks: np.ndarray = None, thickness=2,
+                    hide_conf=False):
     # Draw prediction on the image. If the landmarks is None, only draw the bbox.
     assert img.ndim == 3, f'img dimension is invalid: {img.ndim}'
     assert img.dtype == np.uint8, f'img dtype must be uint8, got {img.dtype}'
@@ -88,9 +81,18 @@ def draw_prediction(img: np.ndarray, bbox: np.ndarray, conf: np.ndarray, landmar
 
         # Text confidence
         if not hide_conf:
-            cv2.putText(img, f'{conf_one:.2f}', (x1, y1 - 2), None, 0.6, conf_color, thickness, cv2.LINE_AA)
+            cv2.putText(img, f'{conf_one:.2f}', (x1, y1 - 2), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6, conf_color, thickness, cv2.LINE_AA)
 
         # Draw landmarks
         if landmarks_one is not None:
             for point_x, point_y, color in zip(landmarks_one[::2], landmarks_one[1::2], landmarks_colors):
                 cv2.circle(img, (point_x, point_y), 2, color, cv2.FILLED)
+
+
+def put_border_text(img: np.ndarray, text: str, org: tuple[int, int], font_scale: float,
+                    color=(0, 0, 0), border_color=(255, 255, 255)):
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale, color, 2, cv2.LINE_AA)
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale, border_color, 1, cv2.LINE_AA)

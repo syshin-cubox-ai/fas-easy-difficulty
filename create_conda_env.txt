@@ -1,0 +1,4 @@
+conda create -n fas python=3.11 -y
+conda activate fas
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install ultralytics onnx onnxruntime-gpu spiga
